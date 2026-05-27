@@ -12,12 +12,14 @@ write_files:
     content: |
       overlay
       br_netfilter
+
   - path: /etc/sysctl.d/k8s.conf
     content: |
       net.bridge.bridge-nf-call-iptables  = 1
       net.bridge.bridge-nf-call-ip6tables = 1
       net.ipv4.ip_forward                 = 1
-  - path: /etc/kubernetes/kubeadmn-custom.yaml
+
+  - path: /etc/kubernetes/kubeadm-custom.yaml
     content: |
       apiVersion: kubeadm.k8s.io/v1beta3
       kind: InitConfiguration
@@ -35,19 +37,22 @@ write_files:
           cloud-provider: external
       networking:
         podSubnet: "192.168.0.0/16"
+
+  # azure.json — credentials should be filled via a secure pipeline (Key Vault, CI/CD secrets)
+  # Do NOT commit real values here
   - path: /etc/kubernetes/azure.json
     content: |
       {
         "cloud": "AzurePublicCloud",
-        "tenantId": """,
-        "subscriptionId": "",
-        "aadClientId": "",
-        "aadClientSecret": "",
+        "tenantId": "REPLACE_TENANT_ID",
+        "subscriptionId": "REPLACE_SUBSCRIPTION_ID",
+        "aadClientId": "REPLACE_CLIENT_ID",
+        "aadClientSecret": "REPLACE_CLIENT_SECRET",
         "resourceGroup": "k8s-rg",
         "securityGroupName": "worker-nsg",
         "securityGroupResourceGroup": "k8s-rg",
         "location": "eastus",
-        "vmType": "vmss",
+        "vmType": "standard",
         "vnetName": "k8s-vnet",
         "vnetResourceGroup": "k8s-rg",
         "subnetName": "worker-subnet",
@@ -60,18 +65,51 @@ write_files:
       }
 
 runcmd:
+  # Load kernel modules
   - modprobe overlay
   - modprobe br_netfilter
   - sysctl --system
+
+  # Configure containerd
   - mkdir -p /etc/containerd
   - containerd config default | tee /etc/containerd/config.toml
   - sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
   - systemctl restart containerd
+
+  # Install Kubernetes packages
   - mkdir -p -m 755 /etc/apt/keyrings
   - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
   - echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
   - apt-get update
   - apt-get install -y kubelet kubeadm kubectl
   - apt-mark hold kubelet kubeadm kubectl
-  - sed -i "s/REPLACE_PUBLIC_IP/$(curl -s ifconfig.me)/g" /etc/kubernetes/kubeadmn-custom.yaml
+
+  # Replace placeholder with actual public IP in kubeadm config
+  - sed -i "s/REPLACE_PUBLIC_IP/$(curl -s ifconfig.me)/g" /etc/kubernetes/kubeadm-custom.yaml
+
+  # Install Helm
   - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+  # NOTE: kubeadm init is intentionally NOT run here automatically.
+  # Run the setup script manually after the VM is ready: sudo /usr/local/bin/k8s-control-plane-init.sh
+  - |
+    cat <<'EOF' > /usr/local/bin/k8s-control-plane-init.sh
+    #!/bin/bash
+    set -e
+    kubeadm init --config /etc/kubernetes/kubeadm-custom.yaml
+    mkdir -p /home/azureuser/.kube
+    cp -i /etc/kubernetes/admin.conf /home/azureuser/.kube/config
+    chown -R azureuser:azureuser /home/azureuser/.kube
+
+    # Create cluster-admin user and kubeconfig
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf create clusterrolebinding admin-role \
+      --clusterrole=cluster-admin --user=admin
+    kubeadm kubeconfig user --client-name=admin | tee /home/azureuser/admin.conf
+    PUBLIC_IP=$(curl -s ifconfig.me)
+    sed -i "s|https://[0-9.]\+:6443|https://${PUBLIC_IP}:6443|" /home/azureuser/admin.conf
+    chown azureuser:azureuser /home/azureuser/admin.conf
+
+    echo "Control plane ready. Download admin.conf with:"
+    echo "  scp azureuser@${PUBLIC_IP}:admin.conf ."
+    EOF
+  - chmod +x /usr/local/bin/k8s-control-plane-init.sh

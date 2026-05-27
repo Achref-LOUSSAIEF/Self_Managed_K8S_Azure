@@ -1,3 +1,7 @@
+variable "subscription_id" {
+  description = "Azure subscription ID"
+}
+
 variable "resource_group_name" {
   description = "Name of the resource group"
   default     = "k8s-rg"
@@ -13,8 +17,8 @@ variable "vnet_name" {
   default     = "k8s-vnet"
 }
 
-variable "vnet_address_space" {
-  description = "Address space for the virtual network"
+variable "vnet_cidr" {
+  description = "CIDR block for the virtual network"
   default     = "10.0.0.0/8"
 }
 
@@ -23,8 +27,8 @@ variable "control_plane_subnet_name" {
   default     = "control-plane-subnet"
 }
 
-variable "control_plane_subnet_prefix" {
-  description = "Address prefix for the control plane subnet"
+variable "control_plane_subnet_cidr" {
+  description = "CIDR block for the control plane subnet"
   default     = "10.0.0.0/16"
 }
 
@@ -33,8 +37,8 @@ variable "worker_subnet_name" {
   default     = "worker-subnet"
 }
 
-variable "worker_subnet_prefix" {
-  description = "Address prefix for the worker subnet"
+variable "worker_subnet_cidr" {
+  description = "CIDR block for the worker subnet"
   default     = "10.1.0.0/16"
 }
 
@@ -72,27 +76,8 @@ variable "ssh_public_key_path" {
   description = "Path to the SSH public key"
   default     = "~/.ssh/id_rsa.pub"
 }
-variable "worker_subnet_cidr" {
-  description = "CIDR block for the worker subnet"
-  default     = "10.1.0.0/16"
-}
-variable "route_table_name" {
-  description = "Name of the route table"
-  default     = "route-table"
-}
-variable "subscription_id" {
-  description = "Azure subscription ID"
-}
-variable "vnet_cidr" {
-  description = "CIDR block for the virtual network"
-  default     = "10.0.0.0/8"
-}
 
-variable "control_plane_subnet_cidr" {
-  description = "CIDR block for the control plane subnet"
-  default     = "10.0.0.0/16"
-}
-variable "ssh_key_path" {
-  description = "Path to the SSH public key used to access the VMs"
-  default     = "~/.ssh/id_rsa.pub"
+variable "allowed_ssh_cidr" {
+  description = "CIDR allowed to SSH into the VMs and reach the K8s API. Replace with your own IP."
+  default     = "0.0.0.0/0" # Replace with your IP, e.g. "203.0.113.10/32"
 }
