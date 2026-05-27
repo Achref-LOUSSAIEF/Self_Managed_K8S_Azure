@@ -20,30 +20,7 @@ Deploy a production-ready, self-managed Kubernetes cluster on Azure virtual mach
 
 ## Architecture
 
-```
-Azure Subscription
-└── Resource Group (k8s-rg)
-    ├── Virtual Network (10.0.0.0/8)
-    │   ├── control-plane-subnet (10.0.0.0/16)  ←  NSG: SSH + port 6443
-    │   └── worker-subnet        (10.1.0.0/16)  ←  NSG: SSH
-    │
-    ├── control-plane-vm  (Ubuntu 22.04)
-    │   ├── kubeadm init
-    │   ├── cloud-provider-azure (Helm)
-    │   └── Calico CNI (Helm / Tigera Operator)
-    │
-    └── worker-vm  (Ubuntu 22.04)
-        └── kubeadm join
-```
-
-| Component | Detail |
-|---|---|
-| OS | Ubuntu 22.04 LTS (minimal) |
-| Kubernetes | v1.29 |
-| Container runtime | containerd (SystemdCgroup enabled) |
-| CNI | Calico v3.27.3 via Tigera Operator |
-| Cloud integration | cloud-provider-azure |
-| Pod CIDR | `192.168.0.0/16` |
+![Architecture Diagram](azure_k8s_architecture.svg)
 
 ---
 
